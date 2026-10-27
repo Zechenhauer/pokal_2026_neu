@@ -62,7 +62,7 @@
         .ticker-score { color: #ffffff; font-weight: bold; font-size: 0.9rem; background: #251216; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border-color); }
         @keyframes ticker-scroll { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-50%, 0, 0); } }
 
-        /* Tor-Alarm Banner (Dein Wunsch-Layout) */
+        /* Tor-Alarm Banner */
         #goalAlertBanner { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #0f1115, #1a2332); border: 2px solid var(--accent-color); box-shadow: 0 10px 30px rgba(0,255,135,0.3); border-radius: 14px; padding: 18px 24px; z-index: 2000; width: 90%; max-width: 480px; text-align: center; animation: bounce-in 0.5s ease; cursor: pointer; }
         @keyframes bounce-in { 0% { transform: translate(-50%, -30px); opacity: 0; } 100% { transform: translate(-50%, 0); opacity: 1; } }
         .goal-alert-title { font-size: 1.2rem; font-weight: 900; color: var(--accent-color); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -120,7 +120,7 @@
     </style>
 </head>
 <body>
-    <!-- Live Tor-Alarm Popup -->
+    <!-- Tor-Alarm Banner -->
     <div id="goalAlertBanner" onclick="hideGoalAlert()">
         <div class="goal-alert-title" id="goalAlertTeam">⚽ Tor!</div>
         <div class="goal-alert-scorer" id="goalAlertScorer">Torschütze & Minute</div>
@@ -156,6 +156,7 @@
 
         <div class="controls">
             <span id="currentRoundTitle" style="font-weight: bold; color: var(--accent-color);">Wähle eine Runde</span>
+            <button onclick="manualRefresh()" style="background: #21262d; border-color: var(--accent-color); color: var(--accent-color);">🔄 Aktualisieren</button>
             <button onclick="subscribePush()" style="background: var(--accent-color); color: #000; font-weight: bold;">🔔 Tor-Alarm aktivieren</button>
         </div>
 
@@ -187,18 +188,12 @@
         const season = "2026";
         let roundsList = [];
         let activeRound = "";
-        let previousScores = {}; // Speicher zur Tor-Erkennung
+        let previousScores = {};
+        let liveCheckInterval = null;
 
         async function init() {
             await checkApiStatus();
             await loadRounds();
-
-            // Automatischer Live-Refresh alle 60 Sekunden inkl. Tor-Erkennung
-            setInterval(() => {
-                if(activeRound) {
-                    loadMatchday(activeRound, true);
-                }
-            }, 60000);
         }
 
         async function checkApiStatus() {
@@ -235,7 +230,6 @@
             const banner = document.getElementById("goalAlertBanner");
             banner.style.display = "block";
 
-            // Nach 10 Sekunden automatisch ausblenden
             setTimeout(() => {
                 hideGoalAlert();
             }, 10000);
@@ -266,7 +260,7 @@
                     });
 
                     activeRound = roundsList[0];
-                    loadMatchday(activeRound);
+                    await loadMatchday(activeRound);
                 } else {
                     tabsContainer.innerHTML = "Keine Runden gefunden.";
                 }
@@ -291,6 +285,12 @@
             loadMatchday(round);
         }
 
+        async function manualRefresh() {
+            if(activeRound) {
+                await loadMatchday(activeRound);
+            }
+        }
+
         async function loadMatchday(round, background = false) {
             activeRound = round;
             document.getElementById("currentRoundTitle").textContent = formatRoundName(round);
@@ -307,6 +307,7 @@
                 if(data.response && data.response.length > 0) {
                     container.innerHTML = "";
                     let tickerHtml = "";
+                    let hasLiveGames = false;
                     
                     const matchPromises = data.response.map(async m => {
                         const fixtureId = m.fixture.id;
@@ -334,8 +335,11 @@
                         const away = m.teams.away;
                         const goalsHome = m.goals.home !== null ? m.goals.home : 0;
                         const goalsAway = m.goals.away !== null ? m.goals.away : 0;
+                        
+                        const statusShort = m.fixture.status.short;
+                        const isLive = ["1H", "2H", "ET", "P", "HT"].includes(statusShort);
+                        if (isLive) hasLiveGames = true;
 
-                        // Automatische Tor-Erkennung
                         if (previousScores[fixtureId] !== undefined) {
                             const prevH = previousScores[fixtureId].home;
                             const prevA = previousScores[fixtureId].away;
@@ -343,7 +347,7 @@
                             if (goalsHome > prevH || goalsAway > prevA) {
                                 let scoringTeam = goalsHome > prevH ? home.name : away.name;
                                 let latestGoal = events.filter(ev => ev.type === 'Goal').pop();
-                                let scorerText = latestGoal ? `${latestGoal.player.name} (${latestGoal.time.elapsed}. Min)` : "Aktuelles Tor";
+                                let scorerText = latestGoal && latestGoal.player ? `${latestGoal.player.name} (${latestGoal.time.elapsed}. Min)` : "Aktuelles Tor";
                                 let matchText = `${home.name} - ${away.name} (${goalsHome}:${goalsAway})`;
 
                                 showGoalAlert(scoringTeam, scorerText, matchText);
@@ -351,16 +355,13 @@
                         }
                         previousScores[fixtureId] = { home: goalsHome, away: goalsAway };
 
-                        const displayHome = m.goals.home !== null ? m.goals.home : "-";
-                        const displayAway = m.goals.away !== null ? m.goals.away : "-";
-                        
                         let penaltyDisplay = "";
                         if (m.score && m.score.penalty && m.score.penalty.home !== null) {
                             penaltyDisplay = ` <span style="font-size:0.75rem; color:var(--accent-color);">(${m.score.penalty.home}:${m.score.penalty.away} i.E.)</span>`;
                         }
 
-                        const statusShort = m.fixture.status.short;
-                        const isLive = ["1H", "2H", "ET", "P", "HT"].includes(statusShort);
+                        const displayHome = m.goals.home !== null ? m.goals.home : "-";
+                        const displayAway = m.goals.away !== null ? m.goals.away : "-";
                         const isFinished = ["FT", "AET", "PEN"].includes(statusShort);
 
                         let dateDisplay = "";
@@ -422,6 +423,21 @@
 
                     document.getElementById('tickerLabel').textContent = formatRoundName(round);
                     document.getElementById('tickerTrack').innerHTML = tickerHtml + tickerHtml;
+
+                    // SMART POLLING: Nur bei Live-Spielen automatisch im 60 Sek. Takt pollen!
+                    if (hasLiveGames) {
+                        if (!liveCheckInterval) {
+                            liveCheckInterval = setInterval(() => {
+                                loadMatchday(activeRound, true);
+                            }, 60000);
+                        }
+                    } else {
+                        if (liveCheckInterval) {
+                            clearInterval(liveCheckInterval);
+                            liveCheckInterval = null;
+                        }
+                    }
+
                 } else if (!background) {
                     container.innerHTML = "Keine Spiele in dieser Runde gefunden.";
                 }
