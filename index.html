@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DFB-Pokal PRO Dashboard — Live, K.o.-Runden & Push</title>
+    
+    <!-- OneSignal SDK -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "30528bc1-cf0a-475d-bc60-12bd4bf0b7b9",
+          safari_web_id: "",
+          path: "/dfb-pokal/",
+          allowLocalhostAsSecureOrigin: true,
+          notifyButton: {
+            enable: true,
+            size: 'medium',
+            position: 'bottom-right',
+            colors: {
+              'circle.background': '#00ff87',
+              'circle.foreground': '#000000',
+            }
+          },
+        });
+      });
+    </script>
+
+    <style>
+        :root {
+            --bg-color: #070d1a;
+            --card-bg: #0f1115;
+            --card-hover: #161b22;
+            --accent-color: #00ff87;
+            --accent-hover: #00cc6a;
+            --text-main: #ffffff;
+            --text-muted: #8b949e;
+            --border-color: #30363d;
+            --live-red: #ff3333;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 15px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 900px; }
+
+        header { text-align: center; margin-bottom: 20px; }
+        h1 { font-size: 2.2rem; color: var(--accent-color); margin-bottom: 5px; }
+        .subtitle { color: var(--text-muted); font-size: 0.95rem; }
+        .author-sub { color: var(--accent-color); font-size: 0.8rem; font-weight: 500; margin-top: 4px; letter-spacing: 0.5px; text-transform: uppercase; }
+
+        .status-box { background: #161b22; border: 1px solid var(--accent-color); padding: 10px 15px; border-radius: 8px; margin-bottom: 20px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; }
+
+        /* AS-Rom Laufband Design */
+        .ticker-wrapper { width: 100%; background: #0c0809; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; margin-bottom: 20px; display: flex; align-items: center; height: 48px; position: relative; }
+        .ticker-label { background: var(--accent-color); color: #000; font-size: 0.75rem; font-weight: bold; padding: 0 14px; height: 100%; display: flex; align-items: center; z-index: 3; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; box-shadow: 4px 0 10px rgba(0,0,0,0.5); }
+        .ticker-content-box { overflow: hidden; white-space: nowrap; flex: 1; position: relative; display: flex; align-items: center; }
+        .ticker-track { display: flex; white-space: nowrap; will-change: transform; animation: ticker-scroll 35s linear infinite; }
+        .ticker-track:hover { animation-play-state: paused; }
+        .ticker-item { display: inline-flex; align-items: center; background: #150a0d; border: 1px solid var(--border-color); padding: 6px 14px; margin: 0 6px; border-radius: 8px; color: #ffffff; font-size: 0.82rem; font-weight: 500; gap: 10px; }
+        .ticker-team-logo { width: 20px; height: 20px; object-fit: contain; vertical-align: middle; }
+        .ticker-score { color: #ffffff; font-weight: bold; font-size: 0.9rem; background: #251216; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border-color); }
+        @keyframes ticker-scroll { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(-50%, 0, 0); } }
+
+        /* Tor-Alarm Banner (Dein Wunsch-Layout) */
+        #goalAlertBanner { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #0f1115, #1a2332); border: 2px solid var(--accent-color); box-shadow: 0 10px 30px rgba(0,255,135,0.3); border-radius: 14px; padding: 18px 24px; z-index: 2000; width: 90%; max-width: 480px; text-align: center; animation: bounce-in 0.5s ease; cursor: pointer; }
+        @keyframes bounce-in { 0% { transform: translate(-50%, -30px); opacity: 0; } 100% { transform: translate(-50%, 0); opacity: 1; } }
+        .goal-alert-title { font-size: 1.2rem; font-weight: 900; color: var(--accent-color); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .goal-alert-scorer { font-size: 1rem; font-weight: bold; margin-bottom: 8px; color: #fff; }
+        .goal-alert-match { font-size: 0.85rem; color: var(--text-muted); border-top: 1px solid var(--border-color); padding-top: 6px; }
+
+        /* Reiter / Tabs Navigation für Pokalrunden */
+        .tabs-container { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 20px; padding-bottom: 5px; }
+        .tab-btn { background: var(--card-bg); color: var(--text-muted); border: 1px solid var(--border-color); padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+        .tab-btn:hover { background: var(--card-hover); color: var(--text-main); }
+        .tab-btn.active { background: var(--accent-color); color: #000; border-color: var(--accent-color); }
+
+        /* Steuerung & Controls */
+        .controls { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 20px; background: var(--card-bg); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); flex-wrap: wrap; }
+        button, select { background: #21262d; color: var(--text-main); border: 1px solid var(--border-color); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.95rem; transition: background 0.2s; }
+        button:hover, select:hover { background: #30363d; }
+        select { padding-right: 30px; }
+
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        h2 { font-size: 1.2rem; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; color: var(--accent-color); }
+
+        /* Spiel-Item mit Live-Design */
+        .match-card-item { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 15px; margin-bottom: 10px; cursor: pointer; transition: background 0.15s; }
+        .match-card-item:hover { background: var(--card-hover); }
+        
+        .match-main-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; }
+        .team { display: flex; align-items: center; gap: 8px; width: 38%; }
+        .team.home { justify-content: flex-end; text-align: right; }
+        .team img { width: 22px; height: 22px; object-fit: contain; }
+        .score-box { text-align: center; width: 24%; }
+        .score { font-weight: bold; background: #21262d; padding: 4px 10px; border-radius: 6px; display: inline-block; min-width: 55px; font-size: 0.95rem; }
+        .match-info-sub { font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 2px; }
+
+        /* Live Badge Blinken */
+        .live-badge { background: var(--live-red); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; animation: pulse-live 1.5s infinite; display: inline-block; }
+        @keyframes pulse-live { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        /* Torschützen-Vorschau unter dem Spiel */
+        .match-scorers-preview { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border-color); font-size: 0.8rem; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .scorer-tag { display: inline-flex; align-items: center; gap: 6px; background: #161b22; padding: 3px 10px; border-radius: 4px; border: 1px solid var(--border-color); width: 100%; max-width: 400px; justify-content: center; }
+        .scorer-score-badge { font-weight: bold; color: var(--accent-color); background: #21262d; padding: 1px 6px; border-radius: 3px; font-size: 0.75rem; }
+
+        /* Modal für Spieldetails & Stats */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
+        .modal-content { background: var(--card-bg); border: 1px solid var(--accent-color); border-radius: 12px; width: 100%; max-width: 650px; max-height: 90vh; overflow-y: auto; padding: 25px; position: relative; }
+        .close-btn { position: absolute; top: 15px; right: 20px; font-size: 1.5rem; color: var(--text-muted); cursor: pointer; background: none; border: none; }
+        .close-btn:hover { color: var(--text-main); }
+        .modal-header { text-align: center; margin-bottom: 20px; }
+        .modal-teams { display: flex; justify-content: space-around; align-items: center; font-size: 1.1rem; font-weight: bold; margin-bottom: 8px; }
+        .modal-teams img { width: 35px; height: 35px; object-fit: contain; }
+        
+        .event-item { display: flex; align-items: center; justify-content: space-between; font-size: 0.88rem; padding: 6px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-main); background: #161b22; margin-bottom: 5px; border-radius: 6px; }
+        .event-time { font-weight: bold; color: var(--accent-color); min-width: 35px; }
+        .event-score { background: #21262d; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <!-- Live Tor-Alarm Popup -->
+    <div id="goalAlertBanner" onclick="hideGoalAlert()">
+        <div class="goal-alert-title" id="goalAlertTeam">⚽ Tor!</div>
+        <div class="goal-alert-scorer" id="goalAlertScorer">Torschütze & Minute</div>
+        <div class="goal-alert-match" id="goalAlertMatch">Spielstand & Paarung</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 8px;">(Zum Schließen antippen)</div>
+    </div>
+
+    <div class="container">
+        <!-- Laufband Oben -->
+        <div class="ticker-wrapper">
+            <div class="ticker-label" id="tickerLabel">⚽ Pokal-Ticker</div>
+            <div class="ticker-content-box">
+                <div class="ticker-track" id="tickerTrack">
+                    <span class="ticker-item">Lade Pokal-Ticker...</span>
+                </div>
+            </div>
+        </div>
+
+        <header>
+            <h1>DFB-Pokal PRO Dashboard</h1>
+            <div class="subtitle">Live-Ergebnisse, Verlängerung, Elfmeterschießen & K.o.-Runden</div>
+            <div class="author-sub">Webmanagement Jürgen Schützendorf</div>
+        </header>
+
+        <div id="apiStatusBanner" class="status-box">
+            <span>Verbinde mit API...</span>
+        </div>
+
+        <!-- Pokal Runden Reiter (Tabs) -->
+        <div class="tabs-container" id="roundsTabsContainer">
+            <button class="tab-btn active">Lade Runden...</button>
+        </div>
+
+        <div class="controls">
+            <span id="currentRoundTitle" style="font-weight: bold; color: var(--accent-color);">Wähle eine Runde</span>
+            <button onclick="subscribePush()" style="background: var(--accent-color); color: #000; font-weight: bold;">🔔 Tor-Alarm aktivieren</button>
+        </div>
+
+        <!-- Hauptbereich Spiele -->
+        <div class="card">
+            <h2 id="matchesCardTitle">Begegnungen</h2>
+            <div id="matchesList">Wähle oben eine Pokalrunde aus...</div>
+        </div>
+    </div>
+
+    <!-- Modal für Spieldetails -->
+    <div id="matchModal" class="modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal()">&times;</button>
+            <div class="modal-header">
+                <div class="modal-teams" id="modalTeamsHeader"></div>
+                <div id="modalStatus" style="color: var(--text-muted); font-size: 0.85rem;"></div>
+            </div>
+            <div style="margin-top: 15px;">
+                <h3 style="font-size: 1rem; color: var(--accent-color); margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Tore & Spielverlauf (inkl. n.V. / Elfmeterschießen)</h3>
+                <div id="modalEvents">Lade Spieldetails...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = "297322363f3bf16e1304cfb933a0c8d5";
+        const leagueId = 81; // DFB-Pokal ID
+        const season = "2026";
+        let roundsList = [];
+        let activeRound = "";
+        let previousScores = {}; // Speicher zur Tor-Erkennung
+
+        async function init() {
+            await checkApiStatus();
+            await loadRounds();
+
+            // Automatischer Live-Refresh alle 60 Sekunden inkl. Tor-Erkennung
+            setInterval(() => {
+                if(activeRound) {
+                    loadMatchday(activeRound, true);
+                }
+            }, 60000);
+        }
+
+        async function checkApiStatus() {
+            const banner = document.getElementById("apiStatusBanner");
+            try {
+                const res = await fetch("https://v3.football.api-sports.io/status", {
+                    headers: { "x-apisports-key": apiKey }
+                });
+                const data = await res.json();
+                if(data.response && data.response.account) {
+                    const acc = data.response.account;
+                    banner.innerHTML = `<span>🟢 PRO-Plan aktiv (${acc.firstname})</span><span>Anfragen heute: <b>${data.response.requests.current} / ${data.response.requests.limit_day}</b></span>`;
+                }
+            } catch(e) {
+                banner.innerHTML = `<span style="color:#ff3333;">❌ Verbindungsfehler</span>`;
+            }
+        }
+
+        function subscribePush() {
+            window.OneSignalDeferred.push(async function(OneSignal) {
+                try {
+                    await OneSignal.Slidedown.promptPush();
+                } catch (e) {
+                    console.error("Push-Anmeldung fehlgeschlagen:", e);
+                }
+            });
+        }
+
+        function showGoalAlert(teamName, scorerInfo, matchInfo) {
+            document.getElementById("goalAlertTeam").textContent = `⚽ Tor für ${teamName}!`;
+            document.getElementById("goalAlertScorer").textContent = scorerInfo;
+            document.getElementById("goalAlertMatch").textContent = matchInfo;
+            
+            const banner = document.getElementById("goalAlertBanner");
+            banner.style.display = "block";
+
+            // Nach 10 Sekunden automatisch ausblenden
+            setTimeout(() => {
+                hideGoalAlert();
+            }, 10000);
+        }
+
+        function hideGoalAlert() {
+            document.getElementById("goalAlertBanner").style.display = "none";
+        }
+
+        async function loadRounds() {
+            try {
+                const res = await fetch(`https://v3.football.api-sports.io/fixtures/rounds?league=${leagueId}&season=${season}`, {
+                    headers: { "x-apisports-key": apiKey }
+                });
+                const data = await res.json();
+                const tabsContainer = document.getElementById("roundsTabsContainer");
+                tabsContainer.innerHTML = "";
+
+                if(data.response && data.response.length > 0) {
+                    roundsList = data.response;
+                    
+                    roundsList.forEach((round, index) => {
+                        const btn = document.createElement("button");
+                        btn.className = "tab-btn" + (index === 0 ? " active" : "");
+                        btn.textContent = formatRoundName(round);
+                        btn.onclick = () => selectRound(round, btn);
+                        tabsContainer.appendChild(btn);
+                    });
+
+                    activeRound = roundsList[0];
+                    loadMatchday(activeRound);
+                } else {
+                    tabsContainer.innerHTML = "Keine Runden gefunden.";
+                }
+            } catch (e) {
+                console.error("Fehler beim Laden der Runden", e);
+            }
+        }
+
+        function formatRoundName(roundStr) {
+            return roundStr
+                .replace("1. Hauptrunde", "1. Runde")
+                .replace("2. Hauptrunde", "2. Runde")
+                .replace("Round of 16", "Achtelfinale")
+                .replace("Quarter-finals", "Viertelfinale")
+                .replace("Semi-finals", "Halbfinale")
+                .replace("Final", "Finale");
+        }
+
+        function selectRound(round, btnElement) {
+            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            btnElement.classList.add("active");
+            loadMatchday(round);
+        }
+
+        async function loadMatchday(round, background = false) {
+            activeRound = round;
+            document.getElementById("currentRoundTitle").textContent = formatRoundName(round);
+            document.getElementById("matchesCardTitle").textContent = `Begegnungen — ${formatRoundName(round)}`;
+            const container = document.getElementById("matchesList");
+            if (!background) container.innerHTML = "Lade Pokal-Spiele...";
+
+            try {
+                const res = await fetch(`https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${season}&round=${round}`, {
+                    headers: { "x-apisports-key": apiKey }
+                });
+                const data = await res.json();
+                
+                if(data.response && data.response.length > 0) {
+                    container.innerHTML = "";
+                    let tickerHtml = "";
+                    
+                    const matchPromises = data.response.map(async m => {
+                        const fixtureId = m.fixture.id;
+                        let events = m.events || [];
+                        
+                        if (events.length === 0 && ['FT', '1H', '2H', 'ET', 'P', 'HT', 'AET', 'PEN'].includes(m.fixture.status.short)) {
+                            try {
+                                const evRes = await fetch(`https://v3.football.api-sports.io/fixtures?id=${fixtureId}`, {
+                                    headers: { "x-apisports-key": apiKey }
+                                });
+                                const evData = await evRes.json();
+                                if(evData.response && evData.response.length > 0) {
+                                    events = evData.response[0].events || [];
+                                }
+                            } catch(err) {}
+                        }
+                        return { match: m, events: events };
+                    });
+
+                    const resolvedMatches = await Promise.all(matchPromises);
+
+                    resolvedMatches.forEach(({ match: m, events }) => {
+                        const fixtureId = m.fixture.id;
+                        const home = m.teams.home;
+                        const away = m.teams.away;
+                        const goalsHome = m.goals.home !== null ? m.goals.home : 0;
+                        const goalsAway = m.goals.away !== null ? m.goals.away : 0;
+
+                        // Automatische Tor-Erkennung
+                        if (previousScores[fixtureId] !== undefined) {
+                            const prevH = previousScores[fixtureId].home;
+                            const prevA = previousScores[fixtureId].away;
+
+                            if (goalsHome > prevH || goalsAway > prevA) {
+                                let scoringTeam = goalsHome > prevH ? home.name : away.name;
+                                let latestGoal = events.filter(ev => ev.type === 'Goal').pop();
+                                let scorerText = latestGoal ? `${latestGoal.player.name} (${latestGoal.time.elapsed}. Min)` : "Aktuelles Tor";
+                                let matchText = `${home.name} - ${away.name} (${goalsHome}:${goalsAway})`;
+
+                                showGoalAlert(scoringTeam, scorerText, matchText);
+                            }
+                        }
+                        previousScores[fixtureId] = { home: goalsHome, away: goalsAway };
+
+                        const displayHome = m.goals.home !== null ? m.goals.home : "-";
+                        const displayAway = m.goals.away !== null ? m.goals.away : "-";
+                        
+                        let penaltyDisplay = "";
+                        if (m.score && m.score.penalty && m.score.penalty.home !== null) {
+                            penaltyDisplay = ` <span style="font-size:0.75rem; color:var(--accent-color);">(${m.score.penalty.home}:${m.score.penalty.away} i.E.)</span>`;
+                        }
+
+                        const statusShort = m.fixture.status.short;
+                        const isLive = ["1H", "2H", "ET", "P", "HT"].includes(statusShort);
+                        const isFinished = ["FT", "AET", "PEN"].includes(statusShort);
+
+                        let dateDisplay = "";
+                        if (isLive) {
+                            dateDisplay = `<span class="live-badge">LIVE ${m.fixture.status.elapsed || ''}'</span>`;
+                        } else if (isFinished) {
+                            dateDisplay = `<span style="color:var(--text-muted);">Beendet</span>`;
+                        } else {
+                            const dateObj = new Date(m.fixture.date);
+                            dateDisplay = dateObj.toLocaleDateString("de-DE", { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                        }
+
+                        tickerHtml += `<span class="ticker-item"><img src="${home.logo}" class="ticker-team-logo">${home.name} <span class="ticker-score">${displayHome}:${displayAway}</span> ${away.name} <img src="${away.logo}" class="ticker-team-logo"></span>`;
+
+                        let scorersHtml = "";
+                        if (events && events.length > 0) {
+                            let goalEvents = events.filter(ev => ev.type === 'Goal');
+                            if (goalEvents.length > 0) {
+                                scorersHtml = `<div class="match-scorers-preview">`;
+                                let currentH = 0;
+                                let currentA = 0;
+
+                                goalEvents.forEach(ge => {
+                                    if (ge.team.id === home.id) currentH++;
+                                    else currentA++;
+
+                                    let scorerName = ge.player && ge.player.name ? ge.player.name : "Tor";
+                                    let extraInfo = ge.detail === 'Own Goal' ? ' (ET)' : (ge.detail === 'Penalty' ? ' (Elfmeter)' : '');
+                                    
+                                    scorersHtml += `
+                                        <div class="scorer-tag">
+                                            <span class="scorer-score-badge">${currentH}:${currentA}</span>
+                                            <span>⚽ ${ge.time.elapsed}' ${scorerName}${extraInfo}</span>
+                                            <span style="opacity:0.6; font-size:0.75rem;">(${ge.team.name})</span>
+                                        </div>
+                                    `;
+                                });
+                                scorersHtml += `</div>`;
+                            }
+                        }
+
+                        const itemDiv = document.createElement("div");
+                        itemDiv.className = "match-card-item";
+                        itemDiv.onclick = () => openMatchDetails(m.fixture.id);
+                        itemDiv.innerHTML = `
+                            <div class="match-main-row">
+                                <div class="team home"><span>${home.name}</span><img src="${home.logo}"></div>
+                                <div class="score-box">
+                                    <div class="score">${displayHome} : ${displayAway}</div>
+                                    <div style="margin-top:2px;">${penaltyDisplay}</div>
+                                    <span class="match-info-sub">${dateDisplay}</span>
+                                </div>
+                                <div class="team"><img src="${away.logo}"><span>${away.name}</span></div>
+                            </div>
+                            ${scorersHtml}
+                        `;
+                        container.appendChild(itemDiv);
+                    });
+
+                    document.getElementById('tickerLabel').textContent = formatRoundName(round);
+                    document.getElementById('tickerTrack').innerHTML = tickerHtml + tickerHtml;
+                } else if (!background) {
+                    container.innerHTML = "Keine Spiele in dieser Runde gefunden.";
+                }
+            } catch(e) {
+                if (!background) container.innerHTML = "Fehler beim Laden der Pokal-Spiele.";
+            }
+        }
+
+        async function openMatchDetails(fixtureId) {
+            const modal = document.getElementById("matchModal");
+            modal.style.display = "flex";
+            document.getElementById("modalTeamsHeader").innerHTML = "Lade Spieldetails...";
+            document.getElementById("modalEvents").innerHTML = "Lade Tore...";
+            document.getElementById("modalStatus").textContent = "";
+
+            try {
+                const res = await fetch(`https://v3.football.api-sports.io/fixtures?id=${fixtureId}`, {
+                    headers: { "x-apisports-key": apiKey }
+                });
+                const data = await res.json();
+
+                if(data.response && data.response.length > 0) {
+                    const match = data.response[0];
+                    const home = match.teams.home;
+                    const away = match.teams.away;
+
+                    let penInfo = "";
+                    if (match.score && match.score.penalty && match.score.penalty.home !== null) {
+                        penInfo = ` (n.Elfmeter: ${match.score.penalty.home}:${match.score.penalty.away})`;
+                    }
+
+                    document.getElementById("modalTeamsHeader").innerHTML = `
+                        <div style="display:flex; align-items:center; gap:8px;"><img src="${home.logo}">${home.name}</div>
+                        <div style="background:#21262d; padding:4px 12px; border-radius:6px;">${match.goals.home ?? 0} : ${match.goals.away ?? 0}${penInfo}</div>
+                        <div style="display:flex; align-items:center; gap:8px;"><img src="${away.logo}">${away.name}</div>
+                    `;
+                    document.getElementById("modalStatus").textContent = `Status: ${match.fixture.status.long}`;
+
+                    let evHtml = "";
+                    if (match.events && match.events.length > 0) {
+                        let hG = 0, aG = 0;
+                        match.events.forEach(ev => {
+                            if (ev.type === 'Goal') {
+                                if (ev.team.id === home.id) hG++; else aG++;
+                                let pName = ev.player && ev.player.name ? ev.player.name : "Tor";
+                                let gType = ev.detail === 'Own Goal' ? ' (ET)' : (ev.detail === 'Penalty' ? ' (Elfmeter)' : '');
+                                evHtml += `
+                                    <div class="event-item">
+                                        <div style="display:flex; align-items:center; gap:10px;">
+                                            <span class="event-time">${ev.time.elapsed}'</span>
+                                            <span>⚽ <b>${pName}</b> <span style="color:var(--text-muted); font-size:0.8rem;">(${ev.team.name})${gType}</span></span>
+                                        </div>
+                                        <span class="event-score">${hG}:${aG}</span>
+                                    </div>
+                                `;
+                            }
+                        });
+                    }
+                    document.getElementById("modalEvents").innerHTML = evHtml !== "" ? evHtml : "<div style='color:var(--text-muted); text-align:center; padding:10px;'>Noch keine Tore oder Spielereignisse.</div>";
+                }
+            } catch(e) {
+                document.getElementById("modalEvents").innerHTML = "Fehler beim Laden.";
+            }
+        }
+
+        function closeModal() {
+            document.getElementById("matchModal").style.display = "none";
+        }
+
+        init();
+    </script>
+</body>
+</html>
