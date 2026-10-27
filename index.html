@@ -424,7 +424,6 @@
                     document.getElementById('tickerLabel').textContent = formatRoundName(round);
                     document.getElementById('tickerTrack').innerHTML = tickerHtml + tickerHtml;
 
-                    // SMART POLLING: Nur bei Live-Spielen automatisch im 60 Sek. Takt pollen!
                     if (hasLiveGames) {
                         if (!liveCheckInterval) {
                             liveCheckInterval = setInterval(() => {
